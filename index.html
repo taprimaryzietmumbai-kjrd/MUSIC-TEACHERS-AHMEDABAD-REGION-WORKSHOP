@@ -60,27 +60,59 @@
 <section id="contribute" class="section"><div class="section-head"><h2 class="section-title">Participant Contributions</h2><p>Share a song, activity, best practice, reflection or classroom resource.</p></div><div class="panel"><form class="form" id="contributionForm"><label>Participant name<input name="name" required placeholder="Your name"></label><label>Kendriya Vidyalaya<input name="school" placeholder="Name of KV"></label><label>Contribution type<select name="type"><option>Best Practice</option><option>Song / Composition</option><option>Classroom Activity</option><option>Resource / Notation</option><option>Reflection</option></select></label><label>Brief description<textarea name="description" required placeholder="Describe your contribution..."></textarea></label><button class="btn" type="submit">Prepare submission</button><p id="contributionStatus" aria-live="polite"></p></form><div class="notice">This version downloads a submission summary to the participant’s device; it does not upload entries to a server. Connect an approved Google Form or Apps Script endpoint for central collection.</div></div></section>
 <section id="feedback" class="section"><div class="section-head"><h2 class="section-title">Reflection & Feedback</h2><p>Pause, reflect and identify how learning will translate into school practice.</p></div><div class="panel"><form class="form" id="reflectionForm"><label>Your name<input name="name" required placeholder="Participant name"></label><label>Most significant learning<textarea name="learning" required placeholder="What learning will stay with you?"></textarea></label><label>How will you apply it in your KV?<textarea name="application" required placeholder="Describe one practical next step..."></textarea></label><label>Suggestion for strengthening the workshop<textarea name="suggestion" placeholder="Your suggestion (optional)"></textarea></label><button class="btn" type="submit">Create reflection note</button><p id="reflectionStatus" aria-live="polite"></p></form><div class="notice">For official feedback collection, connect the approved KVS/ZIET feedback Google Form.</div></div></section></main><footer><strong>ZIET Mumbai</strong><br>Kendriya Vidyalaya Sangathan · KVS Ahmedabad Region<br>लय, राग और आत्मचिंतन · Rhythm, Raga and Reflection<br><span style="opacity:.7">A participant learning space · 2026</span></footer><script>
 const tabs=[...document.querySelectorAll('nav button')];function showTab(id){document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));tabs.forEach(b=>b.classList.toggle('active',b.dataset.tab===id));history.replaceState(null,'','#'+id);window.scrollTo({top:document.querySelector('nav').offsetTop,behavior:'smooth'});}tabs.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));document.querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showTab(a.dataset.go)}));function downloadText(filename,content){const blob=new Blob([content],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}document.getElementById('contributionForm').addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));downloadText('workshop-contribution.txt',Object.entries(d).map(([k,v])=>k.toUpperCase()+': '+v).join('\n\n'));document.getElementById('contributionStatus').textContent='Your submission note has been downloaded. Please share it with the workshop coordinator.';});document.getElementById('reflectionForm').addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));downloadText('workshop-reflection.txt',Object.entries(d).map(([k,v])=>k.toUpperCase()+': '+v).join('\n\n'));document.getElementById('reflectionStatus').textContent='Your reflection note has been downloaded.';});
-// Session-wise resource register. Paste approved, publicly accessible Drive/Forms/Docs URLs
-// into the matching resource key. Leave a value blank until the file/link is ready.
-const sessionResourceLinks = {
-};
-const resourceTypes = [
-  ['ppt','PPT'],['glimpses','Glimpses'],['feedback','Feedback'],['report','Report'],['qr','QR Code']
-];
-document.querySelectorAll('.schedule-table tbody tr').forEach((row,dayIndex)=>{
-  const cells=[...row.querySelectorAll('td')];
-  cells.slice(1).forEach((cell,slotIndex)=>{
-    const key='d'+(dayIndex+1)+'-'+(slotIndex===0?'assembly':'s'+slotIndex);
-    const box=document.createElement('div');box.className='resource-links';box.setAttribute('aria-label','Resources for '+key);
-    resourceTypes.forEach(([type,label])=>{
-      const url=sessionResourceLinks[key]?.[type]||'';
-      const a=document.createElement('a');a.className='resource-link '+(url?'ready':'pending');a.textContent=(url?'↗ ':'○ ')+label;
-      if(url){a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.title='Open '+label;}
-      else {a.href='javascript:void(0)';a.setAttribute('aria-disabled','true');a.title=label+' resource link will be added';a.addEventListener('click',e=>e.preventDefault());}
-      box.appendChild(a);
-    });
-    const caption=document.createElement('div');caption.className='resource-caption';caption.textContent='Session resources';cell.appendChild(box);cell.appendChild(caption);
+// Shared session resource register powered by the companion Google Apps Script.
+const RESOURCE_API_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
+let resourceAdminPin = '';
+let sharedResourceData = {};
+const resourceTypes = ['PPT','Glimpses','Feedback','Report','QR Code'];
+function resourceKey(day,slot){return 'd'+day+'-'+slot;}
+function resourceNode(key){
+ const wrap=document.createElement('div');wrap.className='resource-panel';
+ const heading=document.createElement('div');heading.className='resource-heading';heading.textContent='🔗 Resources';wrap.appendChild(heading);
+ const list=document.createElement('div');list.className='resource-list';list.id='list-'+key;wrap.appendChild(list);
+ const title=document.createElement('input');title.className='resource-input';title.placeholder='Resource title';title.setAttribute('aria-label','Resource title');
+ const url=document.createElement('input');url.className='resource-input';url.placeholder='Paste Google Drive / PDF / PPT / Video / Website link';url.setAttribute('aria-label','Resource link');url.type='url';
+ const add=document.createElement('button');add.className='resource-add';add.type='button';add.textContent='Add Hyperlink';
+ const status=document.createElement('div');status.className='resource-status';status.setAttribute('aria-live','polite');
+ add.addEventListener('click',async()=>{
+  const t=title.value.trim(),u=url.value.trim();
+  if(!t||!u){status.textContent='Enter both a resource title and a valid link.';return;}
+  try{new URL(u);}catch(e){status.textContent='Please enter a complete valid URL (https://...).';return;}
+  if(!RESOURCE_API_URL.startsWith('https://script.google.com/')){status.textContent='Storage is not connected yet. Complete the one-time Google Apps Script setup in README.';return;}
+  if(!resourceAdminPin){resourceAdminPin=prompt('Enter the resource administrator PIN:')||'';}
+  if(!resourceAdminPin){status.textContent='Administrator PIN is required to add resources.';return;}
+  add.disabled=true;status.textContent='Saving resource…';
+  try{
+   const q=new URLSearchParams({action:'add',key,title:t,url:u,pin:resourceAdminPin});
+   const response=await fetch(RESOURCE_API_URL+'?'+q.toString(),{method:'GET'});
+   const result=await response.json();
+   if(!result.ok)throw new Error(result.error||'Could not save resource');
+   title.value='';url.value='';status.textContent='Saved. The resource is now available to participants.';
+   await loadSharedResources();
+  }catch(err){status.textContent='Could not save: '+err.message+'. Check the Apps Script deployment and access settings.';}
+  finally{add.disabled=false;}
+ });
+ wrap.append(title,url,add,status);return wrap;
+}
+function renderResourceLinks(){
+ document.querySelectorAll('.schedule-table tbody tr').forEach((row,dayIndex)=>{
+  [...row.querySelectorAll('td')].slice(1).forEach((cell,slotIndex)=>{
+   const key=resourceKey(dayIndex+1,slotIndex===0?'assembly':'s'+slotIndex);
+   const box=cell.querySelector('.resource-panel')||resourceNode(key);
+   if(!box.isConnected)cell.appendChild(box);
+   const list=box.querySelector('.resource-list');list.replaceChildren();
+   (sharedResourceData[key]||[]).forEach(item=>{
+    const a=document.createElement('a');a.className='resource-saved-link';a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='↗ '+item.title;list.appendChild(a);
+   });
   });
-});
+ });
+}
+async function loadSharedResources(){
+ if(!RESOURCE_API_URL.startsWith('https://script.google.com/')){renderResourceLinks();return;}
+ try{const r=await fetch(RESOURCE_API_URL+'?action=list');const data=await r.json();if(data.ok){sharedResourceData=data.resources||{};}}
+ catch(e){console.warn('Shared resources could not be loaded',e);}
+ renderResourceLinks();
+}
+loadSharedResources();
 const initial=location.hash.slice(1);if(initial&&document.getElementById(initial))showTab(initial);
 </script></body></html>
