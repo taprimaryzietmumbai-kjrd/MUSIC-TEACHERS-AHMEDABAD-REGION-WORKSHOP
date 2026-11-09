@@ -85,14 +85,10 @@ function output_(result, callback) {
 }
 
 function participantSubmit_(p) {
-  const required = ['name','employeeCode','school','region','email','pushtiUrl','feedbackUrl','reflection','actionPlan','attendance'];
+  const required = ['name','employeeCode','school','region','email','attendance'];
   required.forEach(k => { if (!String(p[k] || '').trim()) throw new Error('Missing required field: ' + k); });
-  validateUrl_(p.pushtiUrl, 'PUSHTI link');
-  validateUrl_(p.feedbackUrl, 'Session-wise feedback link');
-  if (p.projectUrl) validateUrl_(p.projectUrl, 'Project evidence link');
   const id = Utilities.getUuid();
-  const row = [new Date(),id,p.name,p.employeeCode,p.school,p.region,p.email,p.pushtiUrl,p.feedbackUrl,
-    p.reflection,p.actionPlan,p.projectUrl || '',p.attendance,'Pending',''];
+  const row = [new Date(),id,p.name,p.employeeCode,p.school,p.region,p.email,'','','','', '',p.attendance,'Pending',''];
   getSheet_(PARTICIPANT_SHEET).appendRow(row);
   return {ok:true,id:id,status:'Pending'};
 }
