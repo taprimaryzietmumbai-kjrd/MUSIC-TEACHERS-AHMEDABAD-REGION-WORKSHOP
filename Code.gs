@@ -44,6 +44,7 @@ function initializeWorkshopStore() {
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if (p.view === 'admin') return HtmlService.createHtmlOutput(adminHtml_()).setTitle('ZIET Mumbai · Workshop Verification').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   let result;
   try {
     if (p.action === 'list') result = listResources_();
@@ -198,4 +199,30 @@ function ensureSheet_(ss,name,headers) {
     sheet.getRange(1,1,1,headers.length).setFontWeight('bold');
   }
   return sheet;
+}
+
+
+/** Server-side functions called only by the Apps Script-hosted admin page. */
+function adminGetSubmissions(pin) {
+  requireAdmin_(pin);
+  const p = getSheet_(PARTICIPANT_SHEET).getDataRange().getDisplayValues();
+  const r = getSheet_(RP_SHEET).getDataRange().getDisplayValues();
+  return {participants:p.slice(1),resourcePersons:r.slice(1)};
+}
+function adminReview(pin,type,id,status,notes) {
+  return reviewSubmission_({pin:pin,type:type,id:id,status:status,notes:notes});
+}
+function adminHtml_() {
+  return `<!doctype html><html><head><base target="_top"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+  body{font:15px/1.5 system-ui;margin:0;background:#fbf7ef;color:#201a15}header{background:#19140f;color:#f8e8c8;padding:20px}main{max-width:1100px;margin:24px auto;padding:0 16px}.panel{background:white;border:1px solid #eadfce;border-radius:14px;padding:18px;margin:14px 0}input,select,textarea{font:inherit;padding:10px;border:1px solid #d9cbb8;border-radius:8px;margin:5px 0;max-width:100%}button{background:#79501f;color:white;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}button.secondary{background:#eee2cf;color:#64451f}.item{border-top:1px solid #eee;padding:14px 0}.meta{color:#74695e;font-size:13px}.status{font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:650px){.grid{grid-template-columns:1fr}}a{color:#85571f}
+  </style></head><body><header><b>ZIET Mumbai · Workshop Admin Verification</b><div>Rhythm, Raga & Reflection · KVS Ahmedabad Region</div></header><main>
+  <section class="panel" id="login"><h2>Administrator sign-in</h2><p>Enter the private ADMIN_PIN configured in Apps Script Script Properties.</p><input id="pin" type="password" autocomplete="current-password" placeholder="Administrator PIN"><button onclick="load()">Sign in & load submissions</button><p id="msg" role="status"></p></section>
+  <section id="dashboard" hidden><div class="panel"><h2>Participant submissions</h2><p class="meta">Approve only after checking each required item and supporting evidence.</p><div id="participants"></div></div>
+  <div class="panel"><h2>Resource Person submissions</h2><p class="meta">RP compliance is tracked separately and does not block participant certificates.</p><div id="rps"></div></div></section></main>
+  <script>
+  let pin='';function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function load(){pin=document.getElementById('pin').value;document.getElementById('msg').textContent='Checking credentials…';google.script.run.withSuccessHandler(data=>{document.getElementById('login').hidden=true;document.getElementById('dashboard').hidden=false;render('participants',data.participants,'Participant');render('rps',data.resourcePersons,'RP');}).withFailureHandler(e=>{document.getElementById('msg').textContent=e.message||String(e);}).adminGetSubmissions(pin);}
+  function render(target,rows,type){const el=document.getElementById(target);if(!rows.length){el.textContent='No submissions received yet.';return;}el.innerHTML=rows.map(r=>{const participant=type==='Participant';const id=r[1];const name=r[2];const links=participant?[['PUSHTI (TNA)',r[7]],['Session-wise Feedback',r[8]],['Project / Evidence',r[11]]]:[['Session Report',r[7]],['PPT',r[8]]];const details=participant?['Employee code: '+r[3],'KV: '+r[4],'Region: '+r[5],'Email: '+r[6],'Reflection: '+r[9],'Action Plan: '+r[10],'Attendance: '+r[12]]:['Employee code: '+r[3],'KV: '+r[4],'Day: '+r[5],'Session: '+r[6]];const status=r[participant?13:9]||'Pending';return '<article class="item"><b>'+esc(name)+'</b> <span class="status">· '+esc(status)+'</span><div class="meta">'+details.map(esc).join(' · ')+'</div><p>'+links.map(x=>x[1]?'<a href="'+esc(x[1])+'" target="_blank">'+esc(x[0])+'</a>':'').filter(Boolean).join(' | ')+'</p><textarea id="note-'+esc(id)+'" placeholder="Admin note / correction required" rows="2" style="width:95%">'+esc(r[participant?14:10]||'')+'</textarea><div><button onclick="review(\''+esc(type)+'\',\''+esc(id)+'\',\'Approved\')">Approve</button> <button class="secondary" onclick="review(\''+esc(type)+'\',\''+esc(id)+'\',\'Correction Required\')">Correction required</button> <button class="secondary" onclick="review(\''+esc(type)+'\',\''+esc(id)+'\',\'Pending\')">Set pending</button></div></article>';}).join('');}
+  function review(type,id,status){const notes=document.getElementById('note-'+id).value;google.script.run.withSuccessHandler(()=>load()).withFailureHandler(e=>alert(e.message||String(e))).adminReview(pin,type,id,status,notes);}
+  </script></body></html>`;
 }
